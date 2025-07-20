@@ -1,0 +1,115 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workflow {
+  id          String   @id
+  name        String
+  description String?
+  tags        String? // JSON string of array
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Workflow metadata
+  nodeCount   Int      @default(0)
+  triggerType String?  // manual, webhook, schedule, etc.
+  
+  // Search and categorization
+  category    String?
+  subcategory String?
+  integrations String? // JSON string of integration names array
+  
+  // Full workflow data (JSON)
+  workflowData String // Complete workflow JSON
+  
+  // Search optimization
+  searchText  String? // Concatenated searchable text
+  
+  // Relations
+  nodes       WorkflowNode[]
+  searchIndex SearchIndex?
+  
+  @@index([category])
+  @@index([triggerType])
+  @@index([active])
+  @@index([name])
+}
+
+model WorkflowNode {
+  id           String @id @default(cuid())
+  workflowId   String
+  nodeId       String // Original node ID from n8n
+  name         String
+  type         String
+  position     String // JSON string of [x, y] coordinates
+  parameters   String // JSON string of node parameters
+  
+  workflow     Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  @@index([workflowId])
+  @@index([type])
+}
+
+model Integration {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  displayName String
+  description String?
+  category    String?
+  iconUrl     String?
+  
+  // Usage statistics
+  usageCount  Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([category])
+  @@index([usageCount])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  displayName String
+  description String?
+  color       String?
+  icon        String?
+  
+  // Hierarchy support
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  
+  // Usage statistics
+  workflowCount Int     @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([parentId])
+  @@index([workflowCount])
+}
+
+model SearchIndex {
+  id         String   @id @default(cuid())
+  workflowId String   @unique
+  content    String   // Full-text search content
+  tokens     String   // Tokenized search terms (JSON array)
+  
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([workflowId])
+}
